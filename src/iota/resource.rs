@@ -62,7 +62,11 @@ impl IotaResourceLocator {
 
 impl Display for IotaResourceLocator {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "iota:{}/{}/{}", self.network, self.object_id, self.relative_url)
+    write!(
+      f,
+      "iota:{}/{}/{}",
+      self.network, self.object_id, self.relative_url
+    )
   }
 }
 
@@ -78,15 +82,23 @@ impl From<IotaResourceLocator> for ChainAgnosticResourceLocator {
     let chain_id = value.network.into();
     let mut url = value.relative_url;
     url
-      .set_path(&format!("{}{}", value.object_id, url.path().trim_start_matches('/')))
+      .set_path(&format!(
+        "{}{}",
+        value.object_id,
+        url.path().trim_start_matches('/')
+      ))
       .expect("valid_path");
 
-    ChainAgnosticResourceLocator { chain_id, locator: url }
+    ChainAgnosticResourceLocator {
+      chain_id,
+      locator: url,
+    }
   }
 }
 
 fn iota_resource_locator_parser(input: &str) -> ParserResult<'_, IotaResourceLocator> {
-  let (rem, (chain_id, object_id)) = separated_pair(iota_chain_id_parser, char('/'), iota_address_parser)(input)?;
+  let (rem, (chain_id, object_id)) =
+    separated_pair(iota_chain_id_parser, char('/'), iota_address_parser)(input)?;
   let (rem, maybe_relative_url) = opt(preceded(opt(char('/')), relative_url_parser))(rem)?;
 
   let resource_locator = IotaResourceLocator {

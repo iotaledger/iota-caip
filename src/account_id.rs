@@ -37,7 +37,9 @@ impl AccountId {
     all_consuming(account_id_parser)
       .process(input.as_ref())
       .map(|(_, id)| id)
-      .map_err(|e| AccountIdParsingError { source: e.into_owned() })
+      .map_err(|e| AccountIdParsingError {
+        source: e.into_owned(),
+      })
   }
 }
 
@@ -66,7 +68,8 @@ fn account_address_parser(input: &str) -> ParserResult<'_, AccountAddress> {
     c == '.' || c == '-' || c.is_ascii_alphanumeric()
   });
 
-  let (_, output) = recognize(many1(any((valid_chars, recognize(perc_encoded_parser))))).process(input)?;
+  let (_, output) =
+    recognize(many1(any((valid_chars, recognize(perc_encoded_parser))))).process(input)?;
   let consumed = output.len().min(ACCOUNT_ADDRESS_MAX_LEN);
   let (output, rem) = input.split_at(consumed);
 
@@ -87,7 +90,9 @@ impl AccountAddress {
     let input = input.into();
     all_consuming(account_address_parser)
       .process(input.as_ref())
-      .map_err(|e| InvalidAccountAddress { source: e.into_owned() })?;
+      .map_err(|e| InvalidAccountAddress {
+        source: e.into_owned(),
+      })?;
 
     Ok(Self(input.into()))
   }
@@ -181,7 +186,10 @@ mod tests {
 
   #[test]
   fn parsing_account_id_with_address_over_128_chars_fails() {
-    let too_long = format!("achain:anetwork:{}", std::iter::repeat_n('x', 129).collect::<String>());
+    let too_long = format!(
+      "achain:anetwork:{}",
+      std::iter::repeat_n('x', 129).collect::<String>()
+    );
     let e = AccountId::parse(&too_long).unwrap_err();
     assert_eq!(
       e.source,

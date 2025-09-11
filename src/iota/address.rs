@@ -53,7 +53,9 @@ impl IotaAccountId {
     all_consuming(iota_account_id_parser)
       .process(input)
       .map(|(_, id)| id)
-      .map_err(|e| IotaAccountIdParsingError { source: e.into_owned() })
+      .map_err(|e| IotaAccountIdParsingError {
+        source: e.into_owned(),
+      })
   }
 }
 
@@ -90,7 +92,9 @@ impl TryFrom<AccountId> for IotaAccountId {
 
 fn iota_account_id_parser(input: &str) -> ParserResult<'_, IotaAccountId> {
   separated_pair(iota_chain_id_parser, char(':'), iota_address_parser)
-    .map(|(chain_id, address): (IotaChainId, IotaAddress)| IotaAccountId::new(chain_id.network, address))
+    .map(|(chain_id, address): (IotaChainId, IotaAddress)| {
+      IotaAccountId::new(chain_id.network, address)
+    })
     .process(input)
 }
 
@@ -100,7 +104,9 @@ pub struct IotaAddress([u8; 32]);
 
 impl Debug for IotaAddress {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_tuple("IotaAddress").field(&self.to_string()).finish()
+    f.debug_tuple("IotaAddress")
+      .field(&self.to_string())
+      .finish()
   }
 }
 
@@ -145,7 +151,9 @@ impl FromStr for IotaAddress {
     all_consuming(iota_address_parser)
       .process(s)
       .map(|(_, address)| address)
-      .map_err(|e| InvalidIotaAddress { source: e.into_owned() })
+      .map_err(|e| InvalidIotaAddress {
+        source: e.into_owned(),
+      })
   }
 }
 
@@ -206,7 +214,11 @@ pub struct InvalidAccountId {
 
 impl Display for InvalidAccountId {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "account ID `{}` is not a valid IOTA account ID: ", self.account_id)?;
+    write!(
+      f,
+      "account ID `{}` is not a valid IOTA account ID: ",
+      self.account_id
+    )?;
     match self.kind {
       InvalidAccountIdKind::InvalidChain => write!(
         f,

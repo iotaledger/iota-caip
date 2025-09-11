@@ -36,7 +36,10 @@ impl ChainId {
   /// # }
   /// ```
   pub const fn new(namespace: Namespace, reference: Reference) -> Self {
-    Self { namespace, reference }
+    Self {
+      namespace,
+      reference,
+    }
   }
 
   /// Attempts to parse a [ChainId] from the given string.
@@ -137,7 +140,9 @@ impl Namespace {
     let s = s.into();
     all_consuming(namespace_parser)
       .process(&s)
-      .map_err(|e| InvalidNamespace { source: e.into_owned() })?;
+      .map_err(|e| InvalidNamespace {
+        source: e.into_owned(),
+      })?;
 
     Ok(Self(s.into()))
   }
@@ -217,7 +222,9 @@ impl Reference {
     let s = s.into();
     all_consuming(reference_parser)
       .process(&s)
-      .map_err(|e| InvalidReference { source: e.into_owned() })?;
+      .map_err(|e| InvalidReference {
+        source: e.into_owned(),
+      })?;
 
     Ok(Self(s.into()))
   }
@@ -246,7 +253,8 @@ impl std::error::Error for InvalidReference {
 }
 
 fn namespace_parser(input: &str) -> ParserResult<'_, Namespace> {
-  let valid_chars = |c: char| !c.is_ascii_uppercase() && c == '-' || c.is_ascii_lowercase() || c.is_ascii_digit();
+  let valid_chars =
+    |c: char| !c.is_ascii_uppercase() && c == '-' || c.is_ascii_lowercase() || c.is_ascii_digit();
   take_while_min_max(3, 8, valid_chars)
     .map(Namespace::new_unchecked)
     .process(input)
@@ -303,13 +311,19 @@ mod tests {
 
   #[test]
   fn parsing_valid_chain_ids_works() {
-    let ok = VALID_CHAIN_IDS.iter().map(|i| ChainId::parse(i)).all(|res| res.is_ok());
+    let ok = VALID_CHAIN_IDS
+      .iter()
+      .map(|i| ChainId::parse(i))
+      .all(|res| res.is_ok());
     assert!(ok);
   }
 
   #[test]
   fn chain_id_to_string_works() {
-    for (chain_id, expected) in VALID_CHAIN_IDS.iter().map(|s| (ChainId::parse(s).unwrap(), *s)) {
+    for (chain_id, expected) in VALID_CHAIN_IDS
+      .iter()
+      .map(|s| (ChainId::parse(s).unwrap(), *s))
+    {
       assert_eq!(chain_id.to_string(), expected);
     }
   }

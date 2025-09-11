@@ -34,7 +34,9 @@ impl Display for Expected {
         write!(
           f,
           "any of {}",
-          expected.iter().fold(String::new(), |s, exp| format!("{s}, {exp}"))
+          expected
+            .iter()
+            .fold(String::new(), |s, exp| format!("{s}, {exp}"))
         )
       }
     }
@@ -83,7 +85,10 @@ impl<'i> std::error::Error for ParseError<'i> {}
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ParseErrorKind {
   /// Encountered an unexpected character.
-  UnexpectedCharacter { invalid: char, expected: Option<Expected> },
+  UnexpectedCharacter {
+    invalid: char,
+    expected: Option<Expected>,
+  },
   /// End of Input.
   EoI,
 }
@@ -146,7 +151,10 @@ where
   type Output = T;
 
   fn process(&mut self, input: &'i str) -> ParserResult<'i, Self::Output> {
-    self.parser.process(input).map(|(rem, output)| (rem, (self.f)(output)))
+    self
+      .parser
+      .process(input)
+      .map(|(rem, output)| (rem, (self.f)(output)))
   }
 }
 
@@ -245,7 +253,11 @@ where
   }
 }
 
-pub fn take_while_min_max<'i, F>(min: usize, max: usize, pred: F) -> impl FnMut(&'i str) -> ParserResult<'i, &'i str>
+pub fn take_while_min_max<'i, F>(
+  min: usize,
+  max: usize,
+  pred: F,
+) -> impl FnMut(&'i str) -> ParserResult<'i, &'i str>
 where
   F: Fn(char) -> bool,
 {
@@ -285,7 +297,11 @@ where
 {
   type Output = O;
   fn process(&mut self, input: &'i str) -> ParserResult<'i, Self::Output> {
-    self.parsers.0.process(input).or_else(|_| self.parsers.1.process(input))
+    self
+      .parsers
+      .0
+      .process(input)
+      .or_else(|_| self.parsers.1.process(input))
   }
 }
 
@@ -446,7 +462,10 @@ pub fn is_lowercase_hex_char(c: char) -> bool {
 }
 
 /// Applies parser `prefix` discarding its output, and then applies `parser`.
-pub fn preceded<'i, P, T>(prefix: P, parser: T) -> impl FnMut(&'i str) -> ParserResult<'i, T::Output>
+pub fn preceded<'i, P, T>(
+  prefix: P,
+  parser: T,
+) -> impl FnMut(&'i str) -> ParserResult<'i, T::Output>
 where
   P: Parser<'i>,
   T: Parser<'i>,
@@ -456,13 +475,20 @@ where
 }
 
 /// Applies the first parser than applies `terminator` discarding its result. Returns the output of the first parser.
-pub fn terminated<'i, P, T>(parser: P, terminator: T) -> impl FnMut(&'i str) -> ParserResult<'i, P::Output>
+pub fn terminated<'i, P, T>(
+  parser: P,
+  terminator: T,
+) -> impl FnMut(&'i str) -> ParserResult<'i, P::Output>
 where
   P: Parser<'i>,
   T: Parser<'i>,
 {
   let mut parser = (parser, terminator);
-  move |input| parser.process(input).map(|(rem, (output, _))| (rem, output))
+  move |input| {
+    parser
+      .process(input)
+      .map(|(rem, (output, _))| (rem, output))
+  }
 }
 
 /// Returns `None` instead of an error when the given parser fails.
@@ -478,7 +504,10 @@ where
 }
 
 /// Fills the given buffer by repeatedly applying the supplied parser.
-pub fn fill<'i, P>(mut parser: P, buf: &mut [P::Output]) -> impl FnMut(&'i str) -> ParserResult<'i, ()> + use<'i, '_, P>
+pub fn fill<'i, P>(
+  mut parser: P,
+  buf: &mut [P::Output],
+) -> impl FnMut(&'i str) -> ParserResult<'i, ()> + use<'i, '_, P>
 where
   P: Parser<'i>,
 {
@@ -558,7 +587,9 @@ where
 }
 
 /// Matches any character from the given string.
-pub fn any_of<'i>(valid_chars: &str) -> impl FnMut(&'i str) -> ParserResult<'i, &'i str> + use<'i, '_> {
+pub fn any_of<'i>(
+  valid_chars: &str,
+) -> impl FnMut(&'i str) -> ParserResult<'i, &'i str> + use<'i, '_> {
   take_while_min_max(1, 1, |c| valid_chars.contains(c))
 }
 
@@ -689,7 +720,9 @@ mod tests {
       }
     );
 
-    let (rem, output) = recognize(many1(tag("abc"))).process("abcabcabcdef").unwrap();
+    let (rem, output) = recognize(many1(tag("abc")))
+      .process("abcabcabcdef")
+      .unwrap();
     assert_eq!(rem, "def");
     assert_eq!(output, "abcabcabc");
   }
@@ -697,7 +730,9 @@ mod tests {
   #[test]
   fn test_all_consuming() {
     let alpha0 = take_while_min_max(0, usize::MAX, |c| c.is_ascii_alphabetic());
-    let digit0 = take_while_min_max(0, usize::MAX, |c| c.is_ascii_digit() && !c.is_ascii_alphabetic());
+    let digit0 = take_while_min_max(0, usize::MAX, |c| {
+      c.is_ascii_digit() && !c.is_ascii_alphabetic()
+    });
     assert!(all_consuming(alpha0).process("abcdef").is_ok());
     let e = all_consuming(digit0).process("12345abcd").unwrap_err();
     assert_eq!(

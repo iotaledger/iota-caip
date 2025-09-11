@@ -135,16 +135,21 @@ impl RelativeUrl {
   pub fn set_path(&mut self, path: &str) -> Result<(), InvalidPath> {
     // Remove any leading slash.
     let path = path.trim_start_matches('/');
-    all_consuming(path_parser).process(path).map_err(|e| InvalidPath {
-      path: path.to_owned(),
-      source: e.into_owned(),
-    })?;
+    all_consuming(path_parser)
+      .process(path)
+      .map_err(|e| InvalidPath {
+        path: path.to_owned(),
+        source: e.into_owned(),
+      })?;
 
     let old_path_len = self.path().trim_start_matches('/').len();
     let mut data = std::mem::take(&mut self.data).into_string();
 
     let offset = path.len() as i32 - old_path_len as i32;
-    let end_of_path = self.query_start.or(self.fragment_start).unwrap_or(old_path_len as u32) as usize;
+    let end_of_path = self
+      .query_start
+      .or(self.fragment_start)
+      .unwrap_or(old_path_len as u32) as usize;
     data.replace_range(..end_of_path, path);
     self.data = data.into_boxed_str();
 
@@ -167,7 +172,9 @@ impl RelativeUrl {
   /// Returns the query component, if any.
   pub fn query(&self) -> Option<&str> {
     let end = self.fragment_start.unwrap_or(self.data.len() as u32) as usize;
-    self.query_start.map(|idx| &self.data[idx as usize + 1..end])
+    self
+      .query_start
+      .map(|idx| &self.data[idx as usize + 1..end])
   }
 
   /// Sets the query component of this URL.
@@ -189,10 +196,12 @@ impl RelativeUrl {
   /// ```
   pub fn set_query(&mut self, query: &str) -> Result<(), InvalidQuery> {
     let query = query.trim_start_matches('?');
-    all_consuming(query_parser).process(query).map_err(|e| InvalidQuery {
-      query: query.to_owned(),
-      source: e.into_owned(),
-    })?;
+    all_consuming(query_parser)
+      .process(query)
+      .map_err(|e| InvalidQuery {
+        query: query.to_owned(),
+        source: e.into_owned(),
+      })?;
 
     let mut data = std::mem::take(&mut self.data).into_string();
     // A query was already set, replace it.
@@ -233,7 +242,9 @@ impl RelativeUrl {
 
   /// Returns the fragment component, if any.
   pub fn fragment(&self) -> Option<&str> {
-    self.fragment_start.map(|idx| &self.data[idx as usize + 1..])
+    self
+      .fragment_start
+      .map(|idx| &self.data[idx as usize + 1..])
   }
 
   /// Sets the fragment component of this URL.

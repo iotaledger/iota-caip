@@ -213,7 +213,9 @@ impl IotaChainId {
     all_consuming(iota_chain_id_parser)
       .process(input.as_ref())
       .map(|(_, id)| id)
-      .map_err(|e| IotaChainIdParseError { source: e.into_owned() })
+      .map_err(|e| IotaChainIdParseError {
+        source: e.into_owned(),
+      })
   }
 
   /// Returns a new [IotaChainId] referencing the given IOTA network.
@@ -281,7 +283,11 @@ pub struct InvalidChainId {
 
 impl Display for InvalidChainId {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "chain ID `{}` is not a valid IOTA's chain ID: ", self.chain_id)?;
+    write!(
+      f,
+      "chain ID `{}` is not a valid IOTA's chain ID: ",
+      self.chain_id
+    )?;
     match self.kind {
       InvalidChainIdKind::InvalidNamespace => {
         write!(f, "invalid namespace `{}` expected `iota`", self.chain_id.namespace)

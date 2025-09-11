@@ -106,7 +106,9 @@ impl AssetId {
     all_consuming(asset_id_parser)
       .process(input.as_ref())
       .map(|(_, output)| output)
-      .map_err(|e| AssetIdParsingError { source: e.into_owned() })
+      .map_err(|e| AssetIdParsingError {
+        source: e.into_owned(),
+      })
   }
 }
 
@@ -147,7 +149,8 @@ impl std::error::Error for AssetIdParsingError {
 }
 
 fn asset_id_parser(input: &str) -> ParserResult<'_, AssetId> {
-  let (rem, (namespace, reference)) = separated_pair(namespace_parser, char(':'), reference_parser)(input)?;
+  let (rem, (namespace, reference)) =
+    separated_pair(namespace_parser, char(':'), reference_parser)(input)?;
   let (rem, token_id) = opt(preceded(char('/'), token_id_parser))(rem)?;
 
   let asset_id = AssetId {
@@ -210,7 +213,9 @@ impl Namespace {
     let s = s.into();
     all_consuming(namespace_parser)
       .process(&s)
-      .map_err(|e| InvalidNamespace { source: e.into_owned() })?;
+      .map_err(|e| InvalidNamespace {
+        source: e.into_owned(),
+      })?;
 
     Ok(Self(s.into()))
   }
@@ -292,7 +297,9 @@ impl Reference {
     let s = s.into();
     all_consuming(reference_parser)
       .process(&s)
-      .map_err(|e| InvalidReference { source: e.into_owned() })?;
+      .map_err(|e| InvalidReference {
+        source: e.into_owned(),
+      })?;
 
     Ok(Self(s.into()))
   }
@@ -321,8 +328,14 @@ impl std::error::Error for InvalidReference {
 }
 
 fn reference_and_token_parser(input: &str, max: usize) -> ParserResult<'_, &str> {
-  let valid_char_parser = take_while_min_max(1, max, |c: char| c == '.' || c == '-' || c.is_ascii_alphanumeric());
-  let (_, output) = recognize(many1(any((valid_char_parser, recognize(perc_encoded_parser))))).process(input)?;
+  let valid_char_parser = take_while_min_max(1, max, |c: char| {
+    c == '.' || c == '-' || c.is_ascii_alphanumeric()
+  });
+  let (_, output) = recognize(many1(any((
+    valid_char_parser,
+    recognize(perc_encoded_parser),
+  ))))
+  .process(input)?;
 
   let consumed = output.len().min(max);
   let (output, rem) = input.split_at(consumed);
@@ -331,7 +344,8 @@ fn reference_and_token_parser(input: &str, max: usize) -> ParserResult<'_, &str>
 }
 
 fn reference_parser(input: &str) -> ParserResult<'_, Reference> {
-  reference_and_token_parser(input, REFERENCE_MAX_LEN).map(|(rem, output)| (rem, Reference::new_unchecked(output)))
+  reference_and_token_parser(input, REFERENCE_MAX_LEN)
+    .map(|(rem, output)| (rem, Reference::new_unchecked(output)))
 }
 
 /// A valid token ID.
@@ -379,7 +393,9 @@ impl TokenId {
     let s = s.into();
     all_consuming(token_id_parser)
       .process(&s)
-      .map_err(|e| InvalidTokenId { source: e.into_owned() })?;
+      .map_err(|e| InvalidTokenId {
+        source: e.into_owned(),
+      })?;
 
     Ok(Self(s.into()))
   }
@@ -408,7 +424,8 @@ impl std::error::Error for InvalidTokenId {
 }
 
 fn token_id_parser(input: &str) -> ParserResult<'_, TokenId> {
-  reference_and_token_parser(input, TOKEN_ID_MAX_LEN).map(|(rem, output)| (rem, TokenId::new_unchecked(output)))
+  reference_and_token_parser(input, TOKEN_ID_MAX_LEN)
+    .map(|(rem, output)| (rem, TokenId::new_unchecked(output)))
 }
 
 #[cfg(feature = "serde")]

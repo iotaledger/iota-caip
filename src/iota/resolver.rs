@@ -4,19 +4,20 @@
 use super::IotaResourceLocator;
 use crate::iota::IotaNetwork;
 
-use iota_client::Client;
-use iota_types::ObjectId;
+use iota::rpc_types::{IotaData, IotaObjectDataOptions};
+use iota::types::base_types::ObjectID;
+use iota::types::error::IotaObjectResponseError;
+use iota::{IotaClient, IotaClientBuilder};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::fmt::Display;
-use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// A resolver for IOTA-based Chain Agnostic Resource Locators.
 #[derive(Default)]
 pub struct Resolver {
-  established_clients: RwLock<HashMap<IotaNetwork, Arc<Client>>>,
+  established_clients: RwLock<HashMap<IotaNetwork, IotaClient>>,
   custom_networks: Vec<(IotaNetwork, String)>,
 }
 
@@ -34,7 +35,9 @@ impl Resolver {
   /// `custom_networks` must be an iterable collection of `(IotaNetwork, String)`, where the first
   /// value must be a custom IOTA network (will be ignored otherwise), and the second value of the
   /// tuple must be the GraphQL endpoint for that network.
-  pub fn new_with_custom_networks(custom_networks: impl IntoIterator<Item = (IotaNetwork, String)>) -> Self {
+  pub fn new_with_custom_networks(
+    custom_networks: impl IntoIterator<Item = (IotaNetwork, String)>,
+  ) -> Self {
     Self {
       custom_networks: custom_networks
         .into_iter()
@@ -56,19 +59,13 @@ impl Resolver {
       })?;
 
     // Query the object referenced in the resource.
-    let object_id = ObjectId::new(resource.object_id.into_bytes());
-    let mut json_object = iota_client
-      .move_object_contents(object_id, None)
+    let object_id = ObjectID::new(resource.object_id.into_bytes());
+    let mut json_object = fetch_object(&iota_client, object_id)
       .await
-      .map_err(|e| ResolutionError {
+      .map_err(|kind| ResolutionError {
         resource: resource.clone(),
-        kind: ResolutionErrorKind::QueryError(e.into()),
-      })?
-      .ok_or_else(|| ResolutionError {
-        resource: resource.clone(),
-        kind: ResolutionErrorKind::NotFound,
+        kind,
       })?;
-
     if resource.relative_url.path() != "/" {
       let target = json_object
         .pointer_mut(&format!("/{}", resource.relative_url.path()))
@@ -84,39 +81,67 @@ impl Resolver {
   }
 
   /// Returns an IOTA client for the given network.
-  async fn get_or_init_client(&self, network: &IotaNetwork) -> Result<Arc<Client>, ResolutionErrorKind> {
+  async fn get_or_init_client(
+    &self,
+    network: &IotaNetwork,
+  ) -> Result<IotaClient, ResolutionErrorKind> {
     if let Some(client) = self.established_clients.read().await.get(network) {
       return Ok(client.clone());
     }
 
-    let client = {
-      let client = match network {
-        &IotaNetwork::Mainnet => Client::new_mainnet(),
-        &IotaNetwork::Testnet => Client::new_testnet(),
-        &IotaNetwork::Devnet => Client::new_devnet(),
-        network => {
-          let endpoint = self
-            .custom_networks
-            .iter()
-            .find_map(|(net, endpoint)| (network == net).then_some(endpoint.as_str()))
-            .ok_or_else(|| ResolutionErrorKind::UnknownNetwork(network.clone()))?;
-          Client::new(endpoint).map_err(|e| ResolutionErrorKind::ConnectionIssue {
-            network: network.clone(),
-            endpoint: endpoint.to_owned(),
-            source: e.into(),
-          })?
-        }
-      };
-      Arc::new(client)
-    };
+    let client = match network {
+      &IotaNetwork::Mainnet => IotaClientBuilder::default().build_mainnet().await,
+      &IotaNetwork::Testnet => IotaClientBuilder::default().build_testnet().await,
+      &IotaNetwork::Devnet => IotaClientBuilder::default().build_devnet().await,
+      network => {
+        let endpoint = self
+          .custom_networks
+          .iter()
+          .find_map(|(net, endpoint)| (network == net).then_some(endpoint.as_str()))
+          .ok_or_else(|| ResolutionErrorKind::UnknownNetwork(network.clone()))?;
+        IotaClientBuilder::default().build(endpoint).await
+      }
+    }
+    .map_err(|e| ResolutionErrorKind::ConnectionIssue {
+      network: network.clone(),
+      source: e.into(),
+    })?;
 
     self
       .established_clients
       .write()
       .await
       .insert(network.clone(), client.clone());
+
     Ok(client)
   }
+}
+
+async fn fetch_object(
+  client: &IotaClient,
+  object_id: ObjectID,
+) -> Result<Value, ResolutionErrorKind> {
+  let response = client
+    .read_api()
+    .get_object_with_options(object_id, IotaObjectDataOptions::default().with_content())
+    .await
+    .map_err(|e| ResolutionErrorKind::QueryError(e.into()))?;
+
+  match response.error {
+    Some(IotaObjectResponseError::NotExists { .. }) => return Err(ResolutionErrorKind::NotFound),
+    Some(e) => return Err(ResolutionErrorKind::QueryError(e.into())),
+    _ => (),
+  }
+
+  let Some(data) = response.data else {
+    return Err(ResolutionErrorKind::NotFound);
+  };
+
+  data
+    .content
+    .and_then(|content| content.try_into_move())
+    .map(|move_obj| move_obj.fields.to_json_value())
+    .ok_or_else(|| ResolutionErrorKind::QueryError("not a Move object".into()))
 }
 
 /// A failure in the resolution of a given IOTA resource.
@@ -154,7 +179,6 @@ pub enum ResolutionErrorKind {
   #[non_exhaustive]
   ConnectionIssue {
     network: IotaNetwork,
-    endpoint: String,
     source: Box<dyn StdError + Send + Sync>,
   },
   /// The underlying query failed.
@@ -166,8 +190,8 @@ impl Display for ResolutionErrorKind {
     match self {
       Self::NotFound => f.write_str("not found"),
       Self::UnknownNetwork(network) => write!(f, "unknown network `iota:{network}`"),
-      Self::ConnectionIssue { network, endpoint, .. } => {
-        write!(f, "failed to connect to `iota:{network}` through endpoint `{endpoint}`")
+      Self::ConnectionIssue { network, .. } => {
+        write!(f, "failed to connect to `iota:{network}`")
       }
       Self::QueryError(e) => write!(f, "{e}"),
     }
@@ -206,17 +230,13 @@ mod tests {
   #[tokio::test]
   async fn empty_path_returns_entire_object() -> Result<(), Box<dyn StdError>> {
     let resolver = Resolver::default();
-    let resource = "iota:mainnet/0x508974bc41f08e86ed3eb223c90081a9bc3f198be1e758c6ade9eff8db06a2dd".parse()?;
+    let resource =
+      "iota:mainnet/0x508974bc41f08e86ed3eb223c90081a9bc3f198be1e758c6ade9eff8db06a2dd".parse()?;
     let resolved_coin = resolver.resolve(&resource).await?;
 
-    let sdk_resolved_coin = resolver
-      .get_or_init_client(&IotaNetwork::Mainnet)
-      .await
-      .unwrap()
-      .move_object_contents(ObjectId::new(resource.object_id.into_bytes()), None)
-      .await?
-      .unwrap();
-
+    let iota_client = resolver.get_or_init_client(&IotaNetwork::Mainnet).await?;
+    let sdk_resolved_coin =
+      fetch_object(&iota_client, ObjectID::new(resource.object_id.into_bytes())).await?;
     assert_eq!(resolved_coin, sdk_resolved_coin);
 
     Ok(())
