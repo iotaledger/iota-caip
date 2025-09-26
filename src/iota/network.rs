@@ -201,8 +201,8 @@ impl Display for IotaChainId {
 
 impl IotaChainId {
   /// Parses an IOTA Chain ID from the given input string.
-  /// ```
-  /// # use iota_caip::iota::{IotaChainId, IotaChainIdParseError, IotaNetwork};
+  /// ```rust
+  /// # use iota_caip::iota::{IotaChainId, network::IotaChainIdParseError, IotaNetwork};
   /// # fn main() -> Result<(), IotaChainIdParseError> {
   /// let iota_chain_id = IotaChainId::parse("iota:mainnet")?;
   /// assert_eq!(iota_chain_id.network, IotaNetwork::Mainnet);

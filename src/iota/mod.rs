@@ -8,6 +8,6 @@ pub mod resource;
 #[cfg(feature = "resolver")]
 pub mod resolver;
 
-pub use address::IotaAddress;
-pub use network::IotaNetwork;
+pub use address::{IotaAccountId, IotaAddress};
+pub use network::{IotaChainId, IotaNetwork};
 pub use resource::IotaResourceLocator;
