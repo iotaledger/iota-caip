@@ -1,6 +1,9 @@
 // Copyright 2020-2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[macro_use]
+mod macros;
+
 /// Implementation of the types described in [CAIP-2](https://chainagnostic.org/CAIPs/caip-2).
 pub mod chain_id;
 

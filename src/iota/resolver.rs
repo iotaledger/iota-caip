@@ -34,7 +34,7 @@ impl Resolver {
   ///
   /// `custom_networks` must be an iterable collection of `(IotaNetwork, String)`, where the first
   /// value must be a custom IOTA network (will be ignored otherwise), and the second value of the
-  /// tuple must be the GraphQL endpoint for that network.
+  /// tuple must be the JSON RPC endpoint for that network.
   pub fn new_with_custom_networks(
     custom_networks: impl IntoIterator<Item = (IotaNetwork, String)>,
   ) -> Self {
@@ -48,36 +48,35 @@ impl Resolver {
   }
 
   /// Resolves the resource referenced by the given [IotaResourceLocator].
-  pub async fn resolve(&self, resource: &IotaResourceLocator) -> Result<Value, ResolutionError> {
-    // Get hold of an IOTA client for the network referenced in the queried resource.
-    let iota_client = self
-      .get_or_init_client(&resource.network)
-      .await
-      .map_err(|kind| ResolutionError {
-        resource: resource.clone(),
-        kind,
-      })?;
+  pub async fn resolve(&self, resource: impl AsRef<str>) -> Result<Value, ResolutionError> {
+    // Parse the resource locator.
+    async_try_block! {
+      let resource = resource
+        .as_ref()
+        .parse::<IotaResourceLocator>()?;
 
-    // Query the object referenced in the resource.
-    let object_id = ObjectID::new(resource.object_id.into_bytes());
-    let mut json_object = fetch_object(&iota_client, object_id)
-      .await
-      .map_err(|kind| ResolutionError {
-        resource: resource.clone(),
-        kind,
-      })?;
-    if resource.relative_url.path() != "/" {
-      let target = json_object
-        .pointer_mut(&format!("/{}", resource.relative_url.path()))
-        // If the path inside the object doesn't yield any value, we return NOT FOUND for now.
-        .ok_or_else(|| ResolutionError {
-          resource: resource.clone(),
-          kind: ResolutionErrorKind::NotFound,
-        })?;
-      Ok(std::mem::take(target))
-    } else {
-      Ok(json_object)
+      // Get hold of an IOTA client for the network referenced in the queried resource.
+      let iota_client = self
+        .get_or_init_client(&resource.network)
+        .await?;
+
+      // Query the object referenced in the resource.
+      let object_id = ObjectID::new(resource.object_id.into_bytes());
+      let mut json_object = fetch_object(&iota_client, object_id).await?;
+      if resource.relative_url.path() != "/" {
+        let target = json_object
+          .pointer_mut(&format!("/{}", resource.relative_url.path()))
+          // If the path inside the object doesn't yield any value, we return NOT FOUND for now.
+          .ok_or(ResolutionErrorKind::NotFound)?;
+        Ok(std::mem::take(target))
+      } else {
+        Ok(json_object)
+      }
     }
+    .map_err(|kind| ResolutionError {
+      resource: resource.as_ref().to_string(),
+      kind,
+    })
   }
 
   /// Returns an IOTA client for the given network.
@@ -149,7 +148,7 @@ async fn fetch_object(
 #[non_exhaustive]
 pub struct ResolutionError {
   /// The resource's location that was being resolved.
-  pub resource: IotaResourceLocator,
+  pub resource: String,
   /// The type of failure.
   pub kind: ResolutionErrorKind,
 }
@@ -183,6 +182,8 @@ pub enum ResolutionErrorKind {
   },
   /// The underlying query failed.
   QueryError(Box<dyn StdError + Send + Sync>),
+  /// Invalid IOTA Resource Locator.
+  InvalidIrl(super::resource::IrlParsingError),
 }
 
 impl Display for ResolutionErrorKind {
@@ -194,6 +195,7 @@ impl Display for ResolutionErrorKind {
         write!(f, "failed to connect to `iota:{network}`")
       }
       Self::QueryError(e) => write!(f, "{e}"),
+      Self::InvalidIrl(e) => write!(f, "{e}"),
     }
   }
 }
@@ -203,8 +205,15 @@ impl StdError for ResolutionErrorKind {
     match &self {
       Self::ConnectionIssue { source, .. } => Some(source.as_ref()),
       Self::QueryError(e) => e.source(),
+      Self::InvalidIrl(e) => e.source(),
       _ => None,
     }
+  }
+}
+
+impl From<super::resource::IrlParsingError> for ResolutionErrorKind {
+  fn from(value: super::resource::IrlParsingError) -> Self {
+    Self::InvalidIrl(value)
   }
 }
 
@@ -231,7 +240,8 @@ mod tests {
   async fn empty_path_returns_entire_object() -> Result<(), Box<dyn StdError>> {
     let resolver = Resolver::default();
     let resource =
-      "iota:mainnet/0x508974bc41f08e86ed3eb223c90081a9bc3f198be1e758c6ade9eff8db06a2dd".parse()?;
+      "iota:mainnet/0x508974bc41f08e86ed3eb223c90081a9bc3f198be1e758c6ade9eff8db06a2dd"
+        .parse::<IotaResourceLocator>()?;
     let resolved_coin = resolver.resolve(&resource).await?;
 
     let iota_client = resolver.get_or_init_client(&IotaNetwork::Mainnet).await?;
