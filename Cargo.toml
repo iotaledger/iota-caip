@@ -8,12 +8,9 @@ license = "Apache-2.0"
 repository = "https://github.com/iotaledger/identity"
 
 [dependencies]
-iota = { git = "https://github.com/iotaledger/iota.git", package = "iota-sdk", tag = "v1.6.1", optional = true }
+reqwest = { version = "0.12", optional = true, features = ["json"] }
 serde = { version = "1", optional = true }
 serde_json = { version = "1", optional = true }
-tokio = { version = "1", default-features = false, features = [
-  "sync",
-], optional = true }
 
 [features]
 default = ["iota", "resolver"]
@@ -21,9 +18,8 @@ iota = []
 serde = ["dep:serde"]
 resolver = [
   "iota",
-  "dep:iota",
-  "dep:tokio",
-  "dep:serde_json"
+  "dep:serde_json",
+  "dep:reqwest",
 ]
 
 [dev-dependencies]
