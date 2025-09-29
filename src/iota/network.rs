@@ -271,7 +271,7 @@ fn is_valid_chain_id_reference(chain_id: &ChainId) -> bool {
         .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()))
 }
 
-/// Error that may occure when converting a [ChainId] into an [IotaChainId].
+/// Error that may occur when converting a [ChainId] into an [IotaChainId].
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct InvalidChainId {
@@ -312,7 +312,7 @@ pub enum InvalidChainIdKind {
 
 impl std::error::Error for InvalidChainId {}
 
-/// Error that may occure when parsing an [IotaChainId] from a string.
+/// Error that may occur when parsing an [IotaChainId] from a string.
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct IotaChainIdParseError {

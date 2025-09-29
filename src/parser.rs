@@ -43,7 +43,7 @@ impl Display for Expected {
   }
 }
 
-/// Error that may occure when parsing a value from an input string.
+/// Error that may occur when parsing a value from an input string.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError<'i> {
   /// The input that was being parsed.
