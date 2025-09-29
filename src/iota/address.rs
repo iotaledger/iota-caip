@@ -111,6 +111,11 @@ impl Debug for IotaAddress {
 }
 
 impl IotaAddress {
+  /// Creates a new IOTA address from the given byte array.
+  pub const fn new(address: [u8; 32]) -> Self {
+    Self(address)
+  }
+
   /// Returns this address' byte representation.
   pub const fn as_bytes(&self) -> &[u8] {
     &self.0
