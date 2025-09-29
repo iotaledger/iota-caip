@@ -57,6 +57,18 @@ pub struct AccountIdParsingError {
   source: ParseError<'static>,
 }
 
+impl Display for AccountIdParsingError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_str("invalid account ID")
+  }
+}
+
+impl std::error::Error for AccountIdParsingError {
+  fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+    Some(&self.source)
+  }
+}
+
 fn account_id_parser(input: &str) -> ParserResult<'_, AccountId> {
   separated_pair(chain_id_parser, char(':'), account_address_parser)
     .map(|(chain_id, address)| AccountId::new(chain_id, address))
