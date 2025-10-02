@@ -43,12 +43,12 @@ impl AsRef<str> for IotaResourceLocator {
 impl IotaResourceLocator {
   /// Returns a new [IotaResourceLocator] from the given components.
   pub fn new(network: IotaNetwork, object_id: IotaAddress, relative_url: RelativeUrl) -> Self {
-    let serialized = format!(
-      "iota:{}/{}{}",
-      network,
-      object_id,
-      relative_url.as_str().trim_start_matches('/')
-    );
+    let mut serialized = format!("iota:{}/{}", network, object_id);
+    if relative_url.path() != "/" {
+      serialized.push('/');
+    }
+    serialized.push_str(relative_url.as_str());
+
     Self {
       network,
       object_id,
