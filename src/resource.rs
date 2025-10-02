@@ -94,6 +94,7 @@ impl RelativeUrl {
 
   /// Parses a [RelativeUrl] from the given string.
   pub fn parse(input: &str) -> Result<RelativeUrl, InvalidRelativeUrl> {
+    let input = input.trim_start_matches('/');
     all_consuming(relative_url_parser)
       .process(input)
       .map(|(_, out)| out)
