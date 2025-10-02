@@ -166,6 +166,19 @@ impl RelativeUrl {
   }
 
   /// Returns an iterator yielding this [RelativeUrl] path's segments.
+  /// # Examples
+  /// ```
+  /// # use iota_caip::resource::RelativeUrl;
+  /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+  /// let mut relative_url = RelativeUrl::parse("/a/very/long/path")?;
+  /// let segments: Vec<&str> = relative_url.path_segments().collect();
+  /// assert_eq!(segments, vec!["a", "very", "long", "path"]);
+  ///
+  /// let empty_path = RelativeUrl::default();
+  /// assert!(empty_path.path_segments().next().is_none());
+  /// #   Ok(())
+  /// # }
+  /// ```
   pub fn path_segments(&self) -> impl Iterator<Item = &str> {
     iterator(self.path(), terminated(path_segment_parser, opt(char('/'))))
   }

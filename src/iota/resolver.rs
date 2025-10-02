@@ -58,7 +58,8 @@ impl Resolver {
         .await?;
 
       // Query the object referenced in the resource.
-      fetch_resource(endpoint, &resource).await
+      let object = fetch_iota_object(endpoint, &resource).await?;
+      traverse_object_with_path(object, resource.relative_url.path_segments()).ok_or(ResolutionErrorKind::NotFound)
     }
     .map_err(|kind| ResolutionError {
       resource: resource.as_ref().to_string(),
@@ -84,7 +85,7 @@ impl Resolver {
   }
 }
 
-async fn fetch_resource(
+async fn fetch_iota_object(
   endpoint: &str,
   irl: &IotaResourceLocator,
 ) -> Result<Value, ResolutionErrorKind> {
@@ -111,12 +112,40 @@ async fn fetch_resource(
     return Err(handle_response_error(err));
   }
 
-  let pointer = format!("/data/content/fields/{}", irl.relative_url.path());
   let target = res
-    .pointer_mut(pointer.as_str().trim_end_matches('/'))
+    .pointer_mut("/data/content/fields")
     .ok_or(ResolutionErrorKind::NotFound)?;
 
   Ok(std::mem::take(target))
+}
+
+fn traverse_object_with_path<'a>(
+  mut object: Value,
+  path_segments: impl Iterator<Item = &'a str>,
+) -> Option<Value> {
+  for segment in path_segments {
+    object = match object {
+      Value::Object(mut map) => if let Some(value) = map.get_mut(segment) {
+        value
+      } else {
+        // If the next segment is not found as a key, try looking for it under the "fields" object.
+        map.get_mut("fields")?.get_mut(segment)?
+      }
+      .take(),
+      Value::Array(mut arr) => {
+        let index: usize = segment.parse().ok()?;
+        arr.get_mut(index)?.take()
+      }
+      _ => return None,
+    };
+  }
+
+  // We have traversed the entire path. If the resulting value is an object, return its "field" object if it exists.
+  let Value::Object(mut map) = object else {
+    return Some(object);
+  };
+
+  map.remove("fields").or(Some(Value::Object(map)))
 }
 
 fn make_rpc_request(object_id: &str) -> Value {
@@ -219,6 +248,7 @@ impl From<super::resource::IrlParsingError> for ResolutionErrorKind {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use serde_json::json;
 
   #[tokio::test]
   async fn resolve_raw_did_bytes() -> Result<(), Box<dyn StdError>> {
@@ -243,7 +273,7 @@ mod tests {
         .parse::<IotaResourceLocator>()?;
     let resolved_coin = resolver.resolve(&resource).await?;
 
-    let sdk_resolved_coin = fetch_resource(MAINNET_RPC_ENDPOINT, &resource).await?;
+    let sdk_resolved_coin = fetch_iota_object(MAINNET_RPC_ENDPOINT, &resource).await?;
     assert_eq!(resolved_coin, sdk_resolved_coin);
 
     Ok(())
@@ -269,5 +299,29 @@ mod tests {
       .unwrap_err();
 
     assert!(matches!(e.kind, ResolutionErrorKind::UnknownNetwork(_)));
+  }
+
+  #[test]
+  fn test_traverse_object_with_path() {
+    let object = json!({"a": {"fields": {"b": 3, "c": {"fields": {"d": 4}}}}});
+    assert_eq!(
+      traverse_object_with_path(object.clone(), std::iter::empty()),
+      Some(object.clone())
+    );
+
+    assert_eq!(
+      traverse_object_with_path(object.clone(), ["a"].iter().copied()),
+      Some(json!({"b": 3, "c": {"fields": {"d": 4}}}))
+    );
+
+    assert_eq!(
+      traverse_object_with_path(object.clone(), ["a", "fields"].iter().copied()),
+      Some(json!({"b": 3, "c": {"fields": {"d": 4}}}))
+    );
+
+    assert_eq!(
+      traverse_object_with_path(object.clone(), ["a", "c"].iter().copied()),
+      Some(json!({"d": 4}))
+    );
   }
 }
